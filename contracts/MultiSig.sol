@@ -43,8 +43,8 @@ contract MultiSigWallet {
 
   Transaction[] public transaction;  // queue of transactions in an array of txs
 
-  // METHODS
-    // NOTE: check if public is needed on contract.
+  // CONSTRUCTOR
+  // NOTE: check if public is needed on contract.
   /// @notice submit a transaction that can be executed if at least 2 other signers approve.
   /// @dev this is the constructor method
   /// @param _owners number of multisign wallet owners
@@ -74,8 +74,33 @@ contract MultiSigWallet {
     _; // if owner, execute the rest of the function
   }
 
+  // confirm transaction exists
+  modifier txExists(uint _txIndex) {
+    // if tx longer than length, then doesn't exist
+    require(transaction[_txIndex < transactions.length], "tx does not exist");
+    _;
+  }
+
+  // confirm transaction is not executed yet
+  modifier notExecuted(_txIndex) {
+    // Throw if true. Passes if false, since inverse due to `!`
+    require(!transaction[_txIndex].executed, "already executed")
+    _;
+  }
+
+  // TO DO: FIX Modifier for 0.8.17 and up
+  // check transaction has not been confirmed
+  // owner can only confirm transction once
+  modifier notConfirmed(_txIndex) {
+    // check address and see if confirmed
+    require(transaction[_txIndex].isConfirmed[msg.sender], "tx already confirmed");
+    _;
+  }
+
+  // METHODS
   /// @notice submit a transaction that can be executed if at least 2 other signers approve.
-  /// @dev Only one of the owners can call function
+  /// @dev Only one of the owners can call function 
+  /// @dev Needs update to solidity 0.8.13 and up
   /// @param _to address transaction is going to
   /// @param _value amount of ether sent
   /// @param _data if calling smart contract, transaction data that is needed to be sent   
@@ -90,11 +115,22 @@ contract MultiSigWallet {
       executed: false,
       numConfirmations: 0
     }));
+
+    // send event that transaction has been sent
+    emit SubmitTransaction(msg.sender, txIndex, _to, _value, _data);
   }
 
   /// @notice other others can approve transaction by calling this function.
-  /// @dev Still WIP
-  function confirmTransaction() public {}
+  /// @dev Needs update to solidity 0.8.13 and up
+  /// @param _txIndex id of transaction that is going to be confirmed
+  function confirmTransaction(uint _txIndex) public 
+    onlyOwner 
+    txExists(_txIndex) 
+    notExecuted(_txIndex) 
+    notConfirmed(_txIndex) {
+      // ... do something
+
+  }
 
   /// @notice can call this function to execute transcaction if enough minumum number of signers is reached.
   /// @dev Still WIP
