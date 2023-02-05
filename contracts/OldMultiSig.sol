@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// pragma solidity >=0.8.13 <= 0.8.19;
+// pragma solidity >=0.8.10;
 pragma solidity ^0.5.11; // write first in 0.5 to keep close to tutorial, then update to >=0.8.13 <= 0.8.19;
 
 
@@ -10,7 +10,6 @@ pragma solidity ^0.5.11; // write first in 0.5 to keep close to tutorial, then u
 /// @author Anthony Albertorio
 /// @notice Do not use in production. For learning purposes only.
 /// @dev Code is not audited.
-/// @custom:experimental This is an experimental contract.
 contract MultiSigWallet {
   // EVENTS
   // emitted when ether is sent to this contract 
@@ -41,7 +40,7 @@ contract MultiSigWallet {
     uint numConfirmations; // num of approvals
   }
 
-  Transaction[] public transaction;  // queue of transactions in an array of txs
+  Transaction[] public transactions;  // queue of transactions in an array of txs
 
   // CONSTRUCTOR
   // NOTE: check if public is needed on contract.
@@ -49,9 +48,13 @@ contract MultiSigWallet {
   /// @dev this is the constructor method
   /// @param _owners number of multisign wallet owners
   /// @param _numConfirmationsRequired number of signers needed for approval
-  constructor(address[] memory _owners, uint _numConfirmationsRequired) {
-    require(_owners.length > 0, "owners required"); // needs owners
-    require(_numConfirmationsRequired > 0 && _numConfirmationsRequired <= owners.length); // 0 < approval <= owners - confirmations more than 0 and less than or equal to number of owners
+  constructor(address[] memory _owners, uint _numConfirmationsRequired) public {
+        require(_owners.length > 0, "owners required"); // needs owners
+        require(
+          _numConfirmationsRequired > 0 &&
+          _numConfirmationsRequired <= _owners.length,
+          "invalid number of required confirmations"
+        ); // 0 < approval <= owners - confirmations more than 0 and less than or equal to number of owners
   
     // TO FIX. Looping is not good usually 
     // copy owners from input to state variables
@@ -67,6 +70,10 @@ contract MultiSigWallet {
     numConfirmationsRequired = _numConfirmationsRequired;
   }
 
+  recieve() external payable {
+    emit Deposit(msg.sender, msg.value, address(this).balance);
+  }
+
   // MODIFIERS
   // Note: some of these will be replaced by OpenZeppelin libraries
   modifier onlyOwner() {
@@ -77,23 +84,23 @@ contract MultiSigWallet {
   // confirm transaction exists
   modifier txExists(uint _txIndex) {
     // if tx longer than length, then doesn't exist
-    require(transaction[_txIndex < transactions.length], "tx does not exist");
+    require(_txIndex < transactions.length, "tx does not exist");
     _;
   }
 
   // confirm transaction is not executed yet
-  modifier notExecuted(_txIndex) {
+  modifier notExecuted(uint _txIndex) {
     // Throw if true. Passes if false, since inverse due to `!`
-    require(!transaction[_txIndex].executed, "already executed")
+    require(!transactions[_txIndex].executed, "already executed");
     _;
   }
 
   // TO DO: FIX Modifier for 0.8.17 and up
   // check transaction has not been confirmed
   // owner can only confirm transction once
-  modifier notConfirmed(_txIndex) {
+  modifier notConfirmed(uint _txIndex) {
     // check address and see if confirmed
-    require(transaction[_txIndex].isConfirmed[msg.sender], "tx already confirmed");
+    require(transactions[_txIndex].isConfirmed[msg.sender], "tx already confirmed");
     _;
   }
 
@@ -105,10 +112,10 @@ contract MultiSigWallet {
   /// @param _value amount of ether sent
   /// @param _data if calling smart contract, transaction data that is needed to be sent   
   function submitTransaction(address _to, uint _value, bytes memory _data) public onlyOwner {
-    uint txIndex = transaction.length; // get id for transaction we will create
+    uint txIndex = transactions.length; // get id for transaction we will create
 
     // add Transaction struct to transaction[] array
-    transaction.push(Transaction({
+    transactions.push(Transaction({
       to: _to,
       value: _value,
       data: _data,
@@ -128,17 +135,63 @@ contract MultiSigWallet {
     txExists(_txIndex) 
     notExecuted(_txIndex) 
     notConfirmed(_txIndex) {
-      // ... do something
+      // get transaction and place in storage
+      // describe this further in README.md
+      Transaction storage transaction = transactions[_txIndex];
+      transaction.isConfirmed[msg.sender] = true; // set to isConfirm true. Means that msg.sender aka wallet owner has approved tx.
+      transaction.numConfirmations += 1;  // increase number of confirmations by 1. Bounded by number of wallet owners. See constructor and state variables      
 
+      emit ConfirmTransaction(msg.sender, _txIndex);
   }
 
-  /// @notice can call this function to execute transcaction if enough minumum number of signers is reached.
-  /// @dev Still WIP
-  function executeTransaction() public {}
+  /// @notice once enough owners approve transaction, they will be able to execute the transaction
+  /// @dev Can only call this function if approval threshold has been reached
+  /// @param _txIndex id of transaction that is going to be called
+  function executeTransaction(uint _txIndex) 
+    public 
+    onlyOwner 
+    txExists(_txIndex) 
+    notExecuted(_txIndex) {
+      // get the Transaction struct
+      Transaction storage transaction = transactions[_txIndex];
+      // check if threshold to execute tx has been reached or passed
+      require(
+        transaction.numConfirmations >= numConfirmationsRequired, 
+        "cannot execute tx"
+      );
+      // if enough confirmations
+      transaction.executed = true;
+
+      // execute the transaction with CALL
+      (bool success, ) = transaction.to.call.value(transaction.value)(transaction.data); 
+      require(success, "tx failed");
+      
+      // emit event with function caller and transaction index executed
+      emit ExecuteTransaction(msg.sender, _txIndex);
+  }
 
   /// @notice allows owner to cancel the confirmation
   /// @dev Still WIP
-  function revokeConfirmation() public {}
+  function revokeConfirmation(
+      uint _txIndex
+  ) public onlyOwner txExists(_txIndex) notExecuted(_txIndex) {
+      // get transaction from storage
+      Transaction storage transaction = transactions[_txIndex];
+
+      // check if transaction from caller has not been confirmed
+      require(transaction.isConfirmed[msg.sender], "tx not confirmed");
+
+      transaction.numConfirmations -= 1;
+      transaction.isConfirmed[msg.sender] = false;
+
+      emit RevokeConfirmation(msg.sender, _txIndex);
+  }
+
+  // fallback function declared as payable to send ether to contract
+  function() payable external {
+    emit Deposit(msg.sender, msg.value, address(this).balance);
+  }
+
 
 }
 
