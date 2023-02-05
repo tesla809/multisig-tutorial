@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.13 <= 0.8.19;
+// pragma solidity >=0.8.13 <= 0.8.19;
+pragma solidity ^0.5.11; // write first in 0.5 to keep close to tutorial, then update to >=0.8.13 <= 0.8.19;
+
+
+// NOTE: original tutorial written in solidity version 0.5
+// Somethings need to be double checked and optimized for 0.8.13 and above
 
 /// @title Sample smart contract based multisignature Wallet
 /// @author Anthony Albertorio
@@ -33,17 +38,18 @@ contract MultiSigWallet {
     bytes data;  // if calling a contract, store tx data to be sent to it. 
     bool executed; // store if tx executed or not
     mapping(address => bool) isConfirmed; // when owner approves tx, store in address(owner address?) and bool (if approve)
-    uint numOfConfirmation; // num of approvals
+    uint numConfirmations; // num of approvals
   }
 
   Transaction[] public transaction;  // queue of transactions in an array of txs
 
   // METHODS
+    // NOTE: check if public is needed on contract.
   /// @notice submit a transaction that can be executed if at least 2 other signers approve.
   /// @dev this is the constructor method
   /// @param _owners number of multisign wallet owners
   /// @param _numConfirmationsRequired number of signers needed for approval
-  constructor(address[] memory _owners, uint _numConfirmationsRequired) public {
+  constructor(address[] memory _owners, uint _numConfirmationsRequired) {
     require(_owners.length > 0, "owners required"); // needs owners
     require(_numConfirmationsRequired > 0 && _numConfirmationsRequired <= owners.length); // 0 < approval <= owners - confirmations more than 0 and less than or equal to number of owners
   
@@ -61,10 +67,30 @@ contract MultiSigWallet {
     numConfirmationsRequired = _numConfirmationsRequired;
   }
 
+  // MODIFIERS
+  // Note: some of these will be replaced by OpenZeppelin libraries
+  modifier onlyOwner() {
+    require(isOwner[msg.sender], "not owner"); // look at mapping isOwner and check if caller's address is there
+    _; // if owner, execute the rest of the function
+  }
 
   /// @notice submit a transaction that can be executed if at least 2 other signers approve.
-  /// @dev Still WIP
-  function submitTransaction() public {}
+  /// @dev Only one of the owners can call function
+  /// @param _to address transaction is going to
+  /// @param _value amount of ether sent
+  /// @param _data if calling smart contract, transaction data that is needed to be sent   
+  function submitTransaction(address _to, uint _value, bytes memory _data) public onlyOwner {
+    uint txIndex = transaction.length; // get id for transaction we will create
+
+    // add Transaction struct to transaction[] array
+    transaction.push(Transaction({
+      to: _to,
+      value: _value,
+      data: _data,
+      executed: false,
+      numConfirmations: 0
+    }));
+  }
 
   /// @notice other others can approve transaction by calling this function.
   /// @dev Still WIP

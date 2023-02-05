@@ -2,7 +2,9 @@
 
 ## Project Goal 
 
-We will learn the basics of how to build a MultiSig Wallet. Through this process we will understand `Solidity 0.8.13` and above, usages of CALL, DELEGEGATECALL, and other methods. 
+We will learn the basics of how to build a MultiSig Wallet. Through this process we will understand `Solidity`, usages of CALL, DELEGEGATECALL, and other methods. 
+
+Note: that the original tutorial written in `Solidity 0.5`. Some code will need to be double checked and optimized for `0.8.13` and above. So, first we will write in `Solidity 0.5`, then update to `0.8.13 to 0.8.19` to understand major differences.
 
 Later, we will learn about Account Abstraction, and learn about it an applied manner by extending our wallet's capabilities.
 
