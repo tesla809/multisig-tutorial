@@ -36,7 +36,7 @@ contract MultiSigWallet {
   mapping(uint => mapping(address => bool)) public isApproved;
 
   // MODIFIERS
-  modifier onlyOwner(address _to) {
+  modifier onlyOwner() {
     require(isOwner[msg.sender], "invalid owner: not owner"); // use mapping to be gas efficient, instead of looping over array of owners
     _;
   }
@@ -61,7 +61,7 @@ contract MultiSigWallet {
   }
 
   // CONSTRUCTOR
-  constructor(address[] memory _owners, uint _numOfRequiredApprovals) {
+  constructor(address[] memory _owners, uint _numOfRequiredApprovals) payable {
     require(_owners.length > 0, "invalid: owners required"); // needs owners
     require(
       _numOfRequiredApprovals > 0 && _numOfRequiredApprovals <= _owners.length, 
@@ -139,14 +139,14 @@ contract MultiSigWallet {
     external 
     onlyOwner {
       // since new,  the latest value - 1, since all arrays are zero indexed aka start counting at 0
-      uint txId = transaction.length
+      uint txId = transactions.length;
 
       // push all arguments into a Transaction struct and add to transactions array
-      transctions.push(Transaction({
+      transactions.push(Transaction({
         to: _to, 
         value: _value, 
         data: _data, 
-        executed: true
+        executed: true,
         numOfConfirmations: 0 // confirmations are 0 when created
       }));
 
@@ -162,21 +162,21 @@ contract MultiSigWallet {
     notApproved(_txId)
     notExecuted(_txId) {
       // get storage to manipulate state variable
-      Transaction storage transaction = transactions[_txIndex];
+      Transaction storage transaction = transactions[_txId];
       transaction.numOfConfirmations += 1; // increment confirmation total
       // set transaction to approved
       isApproved[_txId][msg.sender] = true;
       emit Approve(msg.sender, _txId);
   }
 
-  function execute(uint _txId) external onlyOwner txExists(_txId) notExecuted(_txId) {
+  function execute(uint _txId) external onlyOwner txExist(_txId) notExecuted(_txId) {
     // store data in Transaction struct and update it
     // persist manipulations in storage 
     Transaction storage transaction = transactions[_txId];
 
     // check if confirmations meets approval count 
     require(
-      transaction.numOfConfirmations >= numConfirmationsRequired, 
+      transaction.numOfConfirmations >= numOfRequiredApprovals, 
       "invalid transaction: not enough confirmations to approve"
     );
 
@@ -207,7 +207,7 @@ contract MultiSigWallet {
       require(isApproved[_txId][msg.sender], "invalid: transaction is not approved");
       
       // manipulate state variable
-      Transaction storage transaction = transactions[_txIndex];
+      Transaction storage transaction = transactions[_txId];
 
       transaction.numOfConfirmations -= 1; // remove confirmation
       isApproved[_txId][msg.sender] = false; // set to false
